@@ -6,7 +6,7 @@ import CandleChart from './components/CandleChart';
 import { OpportunityCard, NoTradeCard } from './components/SignalCard';
 import HistoryTable from './components/HistoryTable';
 import Dashboard from './components/Dashboard';
-import { fetchFilters, updateFilters, fetchSignal, addHistoryEntry } from './api/client';
+import { fetchFilters, updateFilters, fetchSignal, addHistoryEntry, resolvePendingHistory } from './api/client';
 import { formatTime, formatLocalDate } from './utils/format';
 import { playAlertSound, notifyOpportunity, requestNotificationPermission } from './utils/alerts';
 
@@ -54,6 +54,7 @@ export default function App() {
   const [autoMonitor, setAutoMonitor] = useState(false);
   const [pollIntervalMs, setPollIntervalMs] = useState(60000);
   const [opportunityFeed, setOpportunityFeed] = useState([]);
+  const [resultsFeed, setResultsFeed] = useState([]);
   const alertedKeysRef = useRef(new Set());
   const pollingRef = useRef(false);
 
@@ -62,6 +63,25 @@ export default function App() {
       setFilters(f);
       if (f.monitored_assets?.length) setSelectedAsset(f.monitored_assets[0]);
     });
+  }, []);
+
+  // Verifica automaticamente se operacoes PENDING ja expiraram e, se sim, se
+  // teriam dado WIN ou LOSS - roda sozinho o tempo todo enquanto o site estiver
+  // aberto, independente da aba, pra voce acompanhar a assertividade em tempo real.
+  useEffect(() => {
+    async function checkResults() {
+      try {
+        const { resolved } = await resolvePendingHistory();
+        if (resolved?.length) {
+          setResultsFeed((feed) => [...resolved.map((r) => ({ ...r, checkedAt: new Date().toISOString() })), ...feed].slice(0, 30));
+        }
+      } catch (e) {
+        console.error('Falha ao verificar resultados pendentes', e);
+      }
+    }
+    checkResults();
+    const id = setInterval(checkResults, 30000);
+    return () => clearInterval(id);
   }, []);
 
   const handleFilterChange = useCallback(async (newFilters) => {
@@ -150,6 +170,7 @@ export default function App() {
     await addHistoryEntry({
       date: formatLocalDate(signal.entryTime),
       time: formatTime(signal.entryTime),
+      entry_time_utc: signal.entryTime,
       asset: signal.asset,
       operation: signal.operation,
       score: signal.score,
@@ -157,7 +178,7 @@ export default function App() {
       result: 'PENDING',
       pattern: signal.priceActionPatterns?.[0]?.pattern || null,
     });
-    alert('Operacao registrada no historico como PENDING. Atualize o resultado (WIN/LOSS) na aba Historico apos a expiracao.');
+    alert('Operacao registrada no historico como PENDING. O sistema vai verificar sozinho se deu WIN ou LOSS assim que a vela fechar.');
   }
 
   return (
@@ -282,6 +303,25 @@ export default function App() {
                           <span className="text-slate-400 font-mono">{formatTime(op.entryTime)}</span>
                           <span className="text-slate-400 font-mono">{op.score}/100</span>
                         </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Feed de resultados verificados automaticamente (WIN/LOSS) */}
+              {resultsFeed.length > 0 && (
+                <div className="panel p-4">
+                  <p className="label-eyebrow mb-3">Assertividade verificada automaticamente</p>
+                  <ul className="space-y-2">
+                    {resultsFeed.map((r, i) => (
+                      <li key={i} className="flex items-center justify-between text-sm px-3 py-2 rounded-md bg-base-800">
+                        <span className="font-mono text-slate-200">{r.asset}</span>
+                        <span className={`font-mono font-medium ${r.operation === 'CALL' ? 'text-call' : 'text-put'}`}>{r.operation}</span>
+                        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${r.result === 'WIN' ? 'bg-call/15 text-call' : 'bg-put/15 text-put'}`}>
+                          {r.result === 'WIN' ? '✅ WIN' : '❌ LOSS'}
+                        </span>
+                        <span className="text-slate-500 font-mono text-[11px]">{formatTime(r.checkedAt)}</span>
                       </li>
                     ))}
                   </ul>

@@ -107,6 +107,26 @@ Atualiza o resultado real de uma operacao apos a expiracao.
 
 **Body**: `{ "result": "WIN" }` (ou `"LOSS"`, `"PENDING"`)
 
+## `POST /api/history/resolve-pending`
+
+Verifica todas as operacoes com `result: "PENDING"` cujo horario de expiracao
+(entrada + 5 minutos) ja passou. Para cada uma, busca o candle correspondente
+na Twelve Data e decide o resultado comparando abertura e fechamento daquele
+candle: **CALL** ganha se `close > open`; **PUT** ganha se `close < open`.
+Atualiza o registro no banco (`result`, `entry_price`, `close_price`) e
+retorna a lista do que foi resolvido nesta chamada.
+
+O frontend chama este endpoint sozinho a cada 30s enquanto o site estiver
+aberto — nao e necessario chamar manualmente.
+
+```json
+{
+  "resolved": [
+    { "id": 42, "asset": "EUR/USD", "operation": "CALL", "result": "WIN", "entryPrice": 1.10234, "closePrice": 1.10256 }
+  ]
+}
+```
+
 ## `DELETE /api/history/:id`
 
 Remove um registro do historico.

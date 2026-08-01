@@ -34,6 +34,11 @@ export async function addHistoryEntry(entry) {
   return data;
 }
 
+export async function resolvePendingHistory() {
+  const { data } = await api.post('/history/resolve-pending');
+  return data;
+}
+
 export async function updateHistoryResult(id, result) {
   const { data } = await api.patch(`/history/${id}`, { result });
   return data;

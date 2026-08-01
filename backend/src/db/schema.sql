@@ -49,3 +49,10 @@ CREATE TABLE IF NOT EXISTS filter_settings (
 );
 
 INSERT INTO filter_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+-- Colunas usadas pela verificacao automatica de resultado (WIN/LOSS): o horario
+-- exato (UTC) da entrada, para casar com o candle certo depois que a vela fecha,
+-- e os precos de abertura/fechamento daquele candle, guardados para transparencia.
+ALTER TABLE history ADD COLUMN IF NOT EXISTS entry_time_utc TEXT;
+ALTER TABLE history ADD COLUMN IF NOT EXISTS entry_price REAL;
+ALTER TABLE history ADD COLUMN IF NOT EXISTS close_price REAL;

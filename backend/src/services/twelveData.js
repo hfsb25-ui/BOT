@@ -34,6 +34,7 @@ async function getCandles(symbol, interval = '5min', outputsize = 210) {
         outputsize,
         apikey: API_KEY,
         order: 'ASC', // do candle mais antigo para o mais recente
+        timezone: 'UTC', // sem isso a Twelve Data usa o fuso da bolsa, o que desalinha com nosso calculo de horario de entrada (que e sempre em UTC)
       },
       timeout: 10000,
     });
