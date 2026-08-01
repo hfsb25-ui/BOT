@@ -6,6 +6,7 @@ import CandleChart from './components/CandleChart';
 import { OpportunityCard, NoTradeCard } from './components/SignalCard';
 import HistoryTable from './components/HistoryTable';
 import Dashboard from './components/Dashboard';
+import Backtest from './components/Backtest';
 import { fetchFilters, updateFilters, fetchSignal, addHistoryEntry, resolvePendingHistory } from './api/client';
 import { formatTime, formatLocalDate } from './utils/format';
 import { playAlertSound, notifyOpportunity, requestNotificationPermission } from './utils/alerts';
@@ -334,6 +335,7 @@ export default function App() {
 
         {tab === 'historico' && <HistoryTable />}
         {tab === 'dashboard' && <Dashboard />}
+        {tab === 'backtest' && <Backtest />}
       </main>
     </div>
   );

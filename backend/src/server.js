@@ -14,11 +14,13 @@ const signalsRouter = require('./routes/signals');
 const historyRouter = require('./routes/history');
 const dashboardRouter = require('./routes/dashboard');
 const filtersRouter = require('./routes/filters');
+const backtestRouter = require('./routes/backtest');
 
 app.use('/api/signal', signalsRouter);
 app.use('/api/history', historyRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/filters', filtersRouter);
+app.use('/api/backtest', backtestRouter);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 

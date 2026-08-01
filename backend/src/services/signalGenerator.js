@@ -19,12 +19,12 @@ function nextM5Boundary() {
   return new Date(Math.ceil(now / FIVE_MIN_MS) * FIVE_MIN_MS);
 }
 
-async function generateSignal(asset, { minScore = 70, minProbability = 60 } = {}) {
-  const candles = await getCandles(asset, '5min', 210);
-  if (candles.length < 60) {
-    throw new Error('Candles insuficientes retornados pela Twelve Data para este ativo/plano.');
-  }
-
+// Nucleo puro do calculo: recebe um array de candles e devolve tendencia, padroes
+// de price action e o resultado do score - sem buscar dados nem depender do
+// horario atual. E a mesma logica usada tanto na analise ao vivo (generateSignal)
+// quanto no backtest (services/backtest.js), garantindo que os dois avaliem
+// exatamente da mesma forma.
+function computeSignal(candles) {
   const ema20 = calculateEMA(candles, 20);
   const ema50 = calculateEMA(candles, 50);
   const ema200 = candles.length >= 200 ? calculateEMA(candles, 200) : new Array(candles.length).fill(null);
@@ -52,6 +52,17 @@ async function generateSignal(asset, { minScore = 70, minProbability = 60 } = {}
     adx: last(adxResult.adx),
     atr: last(atr),
   });
+
+  return { trend, priceActionPatterns, scoreResult, ema20, ema50, ema200, rsi, macd, atr, adxResult, bollinger, stochastic, levels, price };
+}
+
+async function generateSignal(asset, { minScore = 70, minProbability = 60 } = {}) {
+  const candles = await getCandles(asset, '5min', 210);
+  if (candles.length < 60) {
+    throw new Error('Candles insuficientes retornados pela Twelve Data para este ativo/plano.');
+  }
+
+  const { trend, priceActionPatterns, scoreResult, ema20, ema50, ema200, rsi, macd, atr, adxResult, bollinger, stochastic, levels, price } = computeSignal(candles);
 
   // Recorte dos ultimos candles para exibir um grafico de velas no frontend,
   // com as EMAs alinhadas ao mesmo periodo para sobrepor no grafico.
@@ -127,4 +138,4 @@ async function generateSignal(asset, { minScore = 70, minProbability = 60 } = {}
   };
 }
 
-module.exports = { generateSignal };
+module.exports = { generateSignal, computeSignal };

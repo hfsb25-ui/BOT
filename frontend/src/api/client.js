@@ -39,6 +39,13 @@ export async function resolvePendingHistory() {
   return data;
 }
 
+export async function runBacktest(asset, { candles, minScore, minProbability }) {
+  const { data } = await api.get(`/backtest/${encodeURIComponent(asset)}`, {
+    params: { candles, minScore, minProbability },
+  });
+  return data;
+}
+
 export async function updateHistoryResult(id, result) {
   const { data } = await api.patch(`/history/${id}`, { result });
   return data;

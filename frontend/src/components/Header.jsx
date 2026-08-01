@@ -5,6 +5,7 @@ export default function Header({ activeTab, onChangeTab }) {
     { id: 'analise', label: 'Analise' },
     { id: 'historico', label: 'Historico' },
     { id: 'dashboard', label: 'Dashboard' },
+    { id: 'backtest', label: 'Backtest' },
   ];
 
   return (

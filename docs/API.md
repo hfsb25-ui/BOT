@@ -127,6 +127,40 @@ aberto — nao e necessario chamar manualmente.
 }
 ```
 
+## `GET /api/backtest/:asset`
+
+Simula o motor de score em cima de candles historicos (sem nunca usar dados
+"do futuro" em cada ponto simulado) e confere cada sinal gerado contra o
+candle seguinte, para calcular a taxa de acerto real do sistema.
+
+**Query params**
+- `candles` (opcional, padrao `500`, max `1500`) — quantidade de candles M5 buscados.
+- `minScore` (opcional, padrao `0`) — so conta como sinal se o score for maior ou igual.
+- `minProbability` (opcional, padrao `0`) — idem para a probabilidade.
+
+```json
+{
+  "asset": "EUR/USD",
+  "candlesAnalyzed": 500,
+  "period": { "from": "2026-07-20 10:00:00", "to": "2026-08-01 14:30:00" },
+  "totalTrades": 87,
+  "wins": 52,
+  "losses": 35,
+  "winRate": 59.8,
+  "scoreBandStats": [
+    { "band": "60-79", "total": 40, "wins": 22, "winRate": 55.0 },
+    { "band": "80-89", "total": 30, "wins": 19, "winRate": 63.3 },
+    { "band": "90-100", "total": 17, "wins": 11, "winRate": 64.7 }
+  ],
+  "callCount": 45,
+  "callWinRate": 60.0,
+  "putCount": 42,
+  "putWinRate": 59.5
+}
+```
+
+---
+
 ## `DELETE /api/history/:id`
 
 Remove um registro do historico.
