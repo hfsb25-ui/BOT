@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Header from './components/Header';
 import FilterPanel from './components/FilterPanel';
-import AssetSelector from './components/AssetSelector';
+import PairCard from './components/PairCard';
+import CandleChart from './components/CandleChart';
 import { OpportunityCard, NoTradeCard } from './components/SignalCard';
 import HistoryTable from './components/HistoryTable';
 import Dashboard from './components/Dashboard';
@@ -9,10 +10,9 @@ import { fetchFilters, updateFilters, fetchSignal, addHistoryEntry } from './api
 import { formatTime, formatLocalDate } from './utils/format';
 import { playAlertSound, notifyOpportunity, requestNotificationPermission } from './utils/alerts';
 
-// Aplica os filtros que dependem do resultado completo do sinal (o backend ja aplica
-// minScore/minProbability; o resto - modo de operacao, tendencia, padroes, volatilidade -
-// e reavaliado aqui porque depende de coisas que so fazem sentido no client, como
-// combinar varios criterios). Usada tanto na analise manual quanto no monitoramento automatico.
+// Reavalia o resultado contra os filtros que dependem de varios criterios ao mesmo
+// tempo (modo de operacao, tendencia, padroes, volatilidade). O backend ja filtra
+// por score/probabilidade minimos; o resto e reavaliado aqui.
 function applyClientFilters(result, filters) {
   if (result.status !== 'OPPORTUNITY') return result;
 
@@ -45,12 +45,12 @@ function applyClientFilters(result, filters) {
 export default function App() {
   const [tab, setTab] = useState('analise');
   const [filters, setFilters] = useState(null);
-  const [selectedAsset, setSelectedAsset] = useState('EUR/USD');
-  const [signal, setSignal] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [selectedAsset, setSelectedAsset] = useState(null);
 
-  // --- Monitoramento automatico + alertas ---------------------------------
+  // Estado de cada par monitorado: { status: 'idle'|'loading'|'opportunity'|'no_trade'|'error', data, lastUpdated, error }
+  const [pairStates, setPairStates] = useState({});
+  const [refreshingAll, setRefreshingAll] = useState(false);
+
   const [autoMonitor, setAutoMonitor] = useState(false);
   const [pollIntervalMs, setPollIntervalMs] = useState(60000);
   const [opportunityFeed, setOpportunityFeed] = useState([]);
@@ -73,28 +73,53 @@ export default function App() {
     }
   }, []);
 
-  const runAnalysis = useCallback(async () => {
-    if (!filters) return;
-    setLoading(true);
-    setError(null);
+  // Roda a analise de UM par e atualiza o card dele. `alert` liga o som/notificacao
+  // (usado so pelo monitoramento automatico, para nao "apitar" toda vez que o
+  // usuario clica manualmente em atualizar).
+  const runAnalysisForAsset = useCallback(async (asset, { alert = false } = {}) => {
+    if (!filters) return null;
+    setPairStates((prev) => ({ ...prev, [asset]: { ...(prev[asset] || {}), status: 'loading' } }));
     try {
-      const raw = await fetchSignal(selectedAsset, {
-        minScore: filters.min_score,
-        minProbability: filters.min_probability,
-      });
-      setSignal(applyClientFilters(raw, filters));
-    } catch (e) {
-      setError(e.response?.data?.error || e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters, selectedAsset]);
+      const raw = await fetchSignal(asset, { minScore: filters.min_score, minProbability: filters.min_probability });
+      const result = applyClientFilters(raw, filters);
+      const now = new Date().toISOString();
+      setPairStates((prev) => ({
+        ...prev,
+        [asset]: { status: result.status === 'OPPORTUNITY' ? 'opportunity' : 'no_trade', data: result, lastUpdated: now },
+      }));
 
-  // Loop de monitoramento: enquanto autoMonitor estiver ligado, verifica todos os
-  // ativos monitorados a cada `pollIntervalMs` e dispara alerta quando uma nova
-  // oportunidade (ainda nao alertada) aparecer.
+      if (alert && result.status === 'OPPORTUNITY') {
+        const key = `${result.asset}-${result.entryTime}`;
+        if (!alertedKeysRef.current.has(key)) {
+          alertedKeysRef.current.add(key);
+          playAlertSound();
+          notifyOpportunity(result, formatTime(result.entryTime));
+          setOpportunityFeed((feed) => [result, ...feed].slice(0, 20));
+        }
+      }
+      return result;
+    } catch (e) {
+      const message = e.response?.data?.error || e.message;
+      setPairStates((prev) => ({ ...prev, [asset]: { status: 'error', error: message, lastUpdated: new Date().toISOString() } }));
+      return null;
+    }
+  }, [filters]);
+
+  // Atualiza todos os pares monitorados, um de cada vez (evita estourar o limite
+  // de requisicoes da Twelve Data ao disparar tudo de uma vez).
+  const refreshAllPairs = useCallback(async () => {
+    if (!filters?.monitored_assets?.length) return;
+    setRefreshingAll(true);
+    for (const asset of filters.monitored_assets) {
+      await runAnalysisForAsset(asset);
+    }
+    setRefreshingAll(false);
+  }, [filters, runAnalysisForAsset]);
+
+  // Monitoramento automatico: repete a verificacao de todos os pares no intervalo
+  // escolhido e dispara alerta (som + notificacao) quando encontra oportunidade nova.
   useEffect(() => {
-    if (!autoMonitor || !filters || !filters.monitored_assets?.length) return;
+    if (!autoMonitor || !filters?.monitored_assets?.length) return;
     let cancelled = false;
 
     async function pollOnce() {
@@ -102,23 +127,7 @@ export default function App() {
       pollingRef.current = true;
       for (const asset of filters.monitored_assets) {
         if (cancelled) break;
-        try {
-          const raw = await fetchSignal(asset, { minScore: filters.min_score, minProbability: filters.min_probability });
-          const result = applyClientFilters(raw, filters);
-          if (result.status === 'OPPORTUNITY') {
-            const key = `${result.asset}-${result.entryTime}`;
-            if (!alertedKeysRef.current.has(key)) {
-              alertedKeysRef.current.add(key);
-              playAlertSound();
-              notifyOpportunity(result, formatTime(result.entryTime));
-              setOpportunityFeed((feed) => [result, ...feed].slice(0, 20));
-              setSelectedAsset(result.asset);
-              setSignal(result);
-            }
-          }
-        } catch (e) {
-          console.error('Falha ao monitorar', asset, e.message);
-        }
+        await runAnalysisForAsset(asset, { alert: true });
       }
       pollingRef.current = false;
     }
@@ -126,15 +135,18 @@ export default function App() {
     pollOnce();
     const id = setInterval(pollOnce, pollIntervalMs);
     return () => { cancelled = true; clearInterval(id); };
-  }, [autoMonitor, filters, pollIntervalMs]);
+  }, [autoMonitor, filters, pollIntervalMs, runAnalysisForAsset]);
 
   function toggleAutoMonitor() {
     if (!autoMonitor) requestNotificationPermission();
     setAutoMonitor((v) => !v);
   }
 
+  const selectedState = selectedAsset ? pairStates[selectedAsset] : null;
+
   async function saveToHistory() {
-    if (!signal || signal.status !== 'OPPORTUNITY') return;
+    if (!selectedState || selectedState.status !== 'opportunity') return;
+    const signal = selectedState.data;
     await addHistoryEntry({
       date: formatLocalDate(signal.entryTime),
       time: formatTime(signal.entryTime),
@@ -158,18 +170,16 @@ export default function App() {
               <FilterPanel filters={filters} onChange={handleFilterChange} />
             </aside>
             <section className="space-y-5">
-              {filters && (
-                <AssetSelector
-                  assets={filters.monitored_assets}
-                  selected={selectedAsset}
-                  onSelect={setSelectedAsset}
-                  onRefresh={runAnalysis}
-                  loading={loading}
-                />
-              )}
+              {/* Controles: atualizar tudo + monitoramento automatico */}
+              <div className="panel p-4 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={refreshAllPairs}
+                  disabled={refreshingAll || !filters}
+                  className="text-sm px-3.5 py-1.5 rounded-md bg-call text-base-950 font-medium hover:opacity-90 disabled:opacity-50"
+                >
+                  {refreshingAll ? 'Atualizando...' : '⟳ Atualizar todos os pares'}
+                </button>
 
-              {/* Monitoramento automatico */}
-              <div className="panel p-4 flex flex-wrap items-center gap-4">
                 <button
                   onClick={toggleAutoMonitor}
                   className={`flex items-center gap-2 text-sm px-3.5 py-1.5 rounded-md font-medium transition-colors ${
@@ -181,7 +191,7 @@ export default function App() {
                 </button>
 
                 <label className="flex items-center gap-2 text-sm text-slate-400">
-                  Verificar a cada
+                  a cada
                   <select
                     value={pollIntervalMs}
                     onChange={(e) => setPollIntervalMs(parseInt(e.target.value))}
@@ -192,37 +202,69 @@ export default function App() {
                     <option value={120000}>2min</option>
                   </select>
                 </label>
-
-                {autoMonitor && (
-                  <span className="text-[11px] text-slate-500">
-                    Verificando {filters?.monitored_assets?.length || 0} ativo(s) · alerta sonoro + notificacao ao encontrar oportunidade
-                  </span>
-                )}
               </div>
 
-              {error && (
-                <div className="panel p-4 border-put/40 text-put text-sm">{error}</div>
-              )}
+              {/* Legenda simples */}
+              <p className="text-[12px] text-slate-500">
+                🟢 Verde = oportunidade de <strong>compra (CALL)</strong> &nbsp;·&nbsp;
+                🔴 Vermelho = oportunidade de <strong>venda (PUT)</strong> &nbsp;·&nbsp;
+                ⚪ Cinza = sem oportunidade no momento. Clique em qualquer par para ver os detalhes completos abaixo.
+              </p>
 
-              {!signal && !error && (
-                <div className="panel p-10 text-center text-slate-500">
-                  Selecione um ativo e clique em "Analisar agora", ou ligue o monitoramento automatico acima.
+              {/* Grade com todos os pares monitorados */}
+              {filters && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {filters.monitored_assets.map((asset) => (
+                    <PairCard
+                      key={asset}
+                      asset={asset}
+                      state={pairStates[asset]}
+                      isSelected={asset === selectedAsset}
+                      onSelect={setSelectedAsset}
+                      onRefresh={(a) => runAnalysisForAsset(a)}
+                    />
+                  ))}
                 </div>
               )}
 
-              {signal?.status === 'OPPORTUNITY' && (
-                <>
-                  <OpportunityCard signal={signal} />
-                  <button
-                    onClick={saveToHistory}
-                    className="text-sm px-4 py-2 rounded-md border border-base-700 text-slate-300 hover:border-call/50 hover:text-call"
-                  >
-                    + Registrar esta operacao no historico
-                  </button>
-                </>
+              {filters && filters.monitored_assets.length === 0 && (
+                <div className="panel p-8 text-center text-slate-500">
+                  Nenhum ativo marcado. Marque ao menos um em "Ativos monitorados", no painel de filtros à esquerda.
+                </div>
               )}
 
-              {signal?.status === 'NO_TRADE' && <NoTradeCard signal={signal} />}
+              {/* Detalhe completo do par selecionado */}
+              {selectedAsset && (
+                <div>
+                  <p className="label-eyebrow mb-2">Detalhes de {selectedAsset}</p>
+                  {!selectedState && (
+                    <div className="panel p-8 text-center text-slate-500">
+                      Clique no ícone ⟳ do card de {selectedAsset} para rodar a análise.
+                    </div>
+                  )}
+                  {selectedState?.status === 'error' && (
+                    <div className="panel p-4 border-put/40 text-put text-sm">{selectedState.error}</div>
+                  )}
+                  {(selectedState?.status === 'opportunity' || selectedState?.status === 'no_trade') && (
+                    <div className="panel p-4 mb-4">
+                      <p className="label-eyebrow mb-3">Histórico de velas (M5)</p>
+                      <CandleChart candles={selectedState.data.candles} />
+                    </div>
+                  )}
+                  {selectedState?.status === 'opportunity' && (
+                    <>
+                      <OpportunityCard signal={selectedState.data} />
+                      <button
+                        onClick={saveToHistory}
+                        className="text-sm px-4 py-2 mt-3 rounded-md border border-base-700 text-slate-300 hover:border-call/50 hover:text-call"
+                      >
+                        + Registrar esta operacao no historico
+                      </button>
+                    </>
+                  )}
+                  {selectedState?.status === 'no_trade' && <NoTradeCard signal={selectedState.data} />}
+                </div>
+              )}
 
               {/* Feed de alertas encontrados durante o monitoramento automatico nesta sessao */}
               {opportunityFeed.length > 0 && (
@@ -232,7 +274,7 @@ export default function App() {
                     {opportunityFeed.map((op, i) => (
                       <li key={i}>
                         <button
-                          onClick={() => { setSelectedAsset(op.asset); setSignal(op); }}
+                          onClick={() => setSelectedAsset(op.asset)}
                           className="w-full flex items-center justify-between text-sm px-3 py-2 rounded-md bg-base-800 hover:bg-base-700 transition-colors"
                         >
                           <span className="font-mono text-slate-200">{op.asset}</span>

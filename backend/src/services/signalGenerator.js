@@ -53,6 +53,21 @@ async function generateSignal(asset, { minScore = 70, minProbability = 60 } = {}
     atr: last(atr),
   });
 
+  // Recorte dos ultimos candles para exibir um grafico de velas no frontend,
+  // com as EMAs alinhadas ao mesmo periodo para sobrepor no grafico.
+  const CHART_CANDLES = 60;
+  const sliceCount = Math.min(CHART_CANDLES, candles.length);
+  const startIdx = candles.length - sliceCount;
+  const chartCandles = candles.slice(startIdx).map((c, i) => ({
+    time: c.time,
+    open: c.open,
+    high: c.high,
+    low: c.low,
+    close: c.close,
+    ema20: ema20[startIdx + i],
+    ema50: ema50[startIdx + i],
+  }));
+
   const entryTime = nextM5Boundary().toISOString();
 
   const justification = Object.values(scoreResult.components)
@@ -90,6 +105,7 @@ async function generateSignal(asset, { minScore = 70, minProbability = 60 } = {}
       probability: scoreResult.probability,
       reasons,
       indicatorsSnapshot,
+      candles: chartCandles,
     };
   }
 
@@ -107,6 +123,7 @@ async function generateSignal(asset, { minScore = 70, minProbability = 60 } = {}
     priceActionPatterns,
     justification,
     indicatorsSnapshot,
+    candles: chartCandles,
   };
 }
 
