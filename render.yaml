@@ -1,0 +1,54 @@
+# Render Blueprint - define os dois servicos do projeto (backend + frontend).
+# Como usar: https://dashboard.render.com -> "New +" -> "Blueprint" -> conectar
+# este repositorio no GitHub. O Render le este arquivo e cria tudo automaticamente.
+# Guia completo com screenshots: docs/DEPLOY.md
+
+services:
+  # --- Backend (API Express) -------------------------------------------------
+  - type: web
+    name: trading-analyzer-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Cole aqui, no painel do Render (aba Environment), a connection string
+      # do seu banco Postgres gratuito (Neon/Supabase). Nao vai no Git.
+      - key: DATABASE_URL
+        sync: false
+      # Cole sua chave da Twelve Data no painel do Render.
+      - key: TWELVE_DATA_API_KEY
+        sync: false
+      - key: DEFAULT_MIN_SCORE
+        value: "70"
+      - key: DEFAULT_MIN_PROBABILITY
+        value: "60"
+      - key: FRONTEND_URL
+        fromService:
+          name: trading-analyzer-frontend
+          type: web
+          property: host
+
+  # --- Frontend (site estatico React) -----------------------------------------
+  - type: web
+    runtime: static
+    name: trading-analyzer-frontend
+    rootDir: frontend
+    buildCommand: "VITE_API_URL=\"https://${BACKEND_HOST}.onrender.com/api\" npm install && VITE_API_URL=\"https://${BACKEND_HOST}.onrender.com/api\" npm run build"
+    staticPublishPath: ./dist
+    autoDeploy: true
+    envVars:
+      - key: BACKEND_HOST
+        fromService:
+          name: trading-analyzer-backend
+          type: web
+          property: host
+    routes:
+      # Garante que rotas internas do React (se houver) nao dem 404 ao recarregar a pagina
+      - type: rewrite
+        source: /*
+        destination: /index.html
