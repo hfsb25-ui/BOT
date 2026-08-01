@@ -1,7 +1,7 @@
 # Render Blueprint - define os dois servicos do projeto (backend + frontend).
 # Como usar: https://dashboard.render.com -> "New +" -> "Blueprint" -> conectar
 # este repositorio no GitHub. O Render le este arquivo e cria tudo automaticamente.
-# Guia completo com screenshots: docs/DEPLOY.md
+# Guia completo: docs/DEPLOY.md
 
 services:
   # --- Backend (API Express) -------------------------------------------------
@@ -27,28 +27,33 @@ services:
         value: "70"
       - key: DEFAULT_MIN_PROBABILITY
         value: "60"
+      # URL PUBLICA (https://...onrender.com) do frontend, usada para liberar o CORS.
+      # RENDER_EXTERNAL_URL e uma variavel que o proprio Render preenche
+      # automaticamente com a URL publica real de cada servico.
       - key: FRONTEND_URL
         fromService:
           name: trading-analyzer-frontend
           type: web
-          property: host
+          envVarKey: RENDER_EXTERNAL_URL
 
   # --- Frontend (site estatico React) -----------------------------------------
   - type: web
     runtime: static
     name: trading-analyzer-frontend
     rootDir: frontend
-    buildCommand: "VITE_API_URL=\"https://${BACKEND_HOST}.onrender.com/api\" npm install && VITE_API_URL=\"https://${BACKEND_HOST}.onrender.com/api\" npm run build"
+    # BACKEND_URL vem da URL publica real do backend (RENDER_EXTERNAL_URL),
+    # nao do endereco interno - e por isso que o build usa ela para montar
+    # VITE_API_URL, a variavel que o navegador do usuario vai usar de fato.
+    buildCommand: "npm install && VITE_API_URL=\"${BACKEND_URL}/api\" npm run build"
     staticPublishPath: ./dist
     autoDeploy: true
     envVars:
-      - key: BACKEND_HOST
+      - key: BACKEND_URL
         fromService:
           name: trading-analyzer-backend
           type: web
-          property: host
+          envVarKey: RENDER_EXTERNAL_URL
     routes:
-      # Garante que rotas internas do React (se houver) nao dem 404 ao recarregar a pagina
       - type: rewrite
         source: /*
         destination: /index.html
