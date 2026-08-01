@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatTime } from '../utils/format';
 
 function ClassificationBadge({ classification, score }) {
   const colors = {
@@ -31,7 +32,7 @@ export function OpportunityCard({ signal }) {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-5">
         <Field icon="🪙" label="Ativo" value={signal.asset} mono />
-        <Field icon="⏰" label="Hora da entrada" value={signal.entryTime} mono />
+        <Field icon="⏰" label="Hora da entrada" value={formatTime(signal.entryTime)} mono />
         <Field icon="⏳" label="Expiracao" value={signal.expiration} mono />
         <Field
           icon="📈"
@@ -80,7 +81,7 @@ export function NoTradeCard({ signal }) {
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
         <Field icon="🪙" label="Ativo" value={signal.asset} mono />
-        <Field icon="⏰" label="Horario" value={signal.time} mono />
+        <Field icon="⏰" label="Horario" value={formatTime(signal.time)} mono />
         <Field icon="🎯" label="Score" value={`${signal.score}/100`} mono />
         <Field icon="📊" label="Probabilidade" value={`${signal.probability}%`} mono />
       </div>

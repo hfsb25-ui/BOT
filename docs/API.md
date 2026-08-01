@@ -21,11 +21,17 @@ oportunidade ou o motivo para nao operar. Toda chamada e logada na tabela
 - `minProbability` (opcional, padrao `60`) — probabilidade minima (%).
 
 **Resposta — oportunidade encontrada** (`status: "OPPORTUNITY"`)
+
+> `entryTime` e `time` sao sempre um horario ISO (UTC) arredondado para o
+> proximo multiplo de 5 minutos (ex: `...T14:35:00.000Z`), ja que a proxima
+> vela M5 comeca nesse instante. O frontend converte para o fuso horario
+> local do navegador na exibicao.
+
 ```json
 {
   "status": "OPPORTUNITY",
   "asset": "EUR/USD",
-  "entryTime": "14:35",
+  "entryTime": "2026-08-01T14:35:00.000Z",
   "expiration": "M5",
   "operation": "CALL",
   "score": 93,
@@ -54,7 +60,7 @@ oportunidade ou o motivo para nao operar. Toda chamada e logada na tabela
 {
   "status": "NO_TRADE",
   "asset": "EUR/USD",
-  "time": "14:35",
+  "time": "2026-08-01T14:35:00.000Z",
   "trend": "LATERAL",
   "score": 42,
   "classification": "Fraco",
@@ -82,7 +88,7 @@ oportunidade exibida na tela).
 ```json
 {
   "date": "2026-08-01",
-  "time": "14:35",
+  "time": "2026-08-01T14:35:00.000Z",
   "asset": "EUR/USD",
   "operation": "CALL",
   "score": 93,
