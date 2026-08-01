@@ -56,6 +56,7 @@ export default function App() {
   const [opportunityFeed, setOpportunityFeed] = useState([]);
   const [resultsFeed, setResultsFeed] = useState([]);
   const alertedKeysRef = useRef(new Set());
+  const registeredKeysRef = useRef(new Set());
   const pollingRef = useRef(false);
 
   useEffect(() => {
@@ -108,13 +109,33 @@ export default function App() {
         [asset]: { status: result.status === 'OPPORTUNITY' ? 'opportunity' : 'no_trade', data: result, lastUpdated: now },
       }));
 
-      if (alert && result.status === 'OPPORTUNITY') {
+      if (result.status === 'OPPORTUNITY') {
         const key = `${result.asset}-${result.entryTime}`;
-        if (!alertedKeysRef.current.has(key)) {
-          alertedKeysRef.current.add(key);
-          playAlertSound();
-          notifyOpportunity(result, formatTime(result.entryTime));
-          setOpportunityFeed((feed) => [result, ...feed].slice(0, 20));
+
+        // Registra automaticamente no historico (uma vez so por oportunidade, mesmo
+        // que o mesmo par seja verificado varias vezes antes do horario de entrada mudar).
+        if (!registeredKeysRef.current.has(key)) {
+          registeredKeysRef.current.add(key);
+          addHistoryEntry({
+            date: formatLocalDate(result.entryTime),
+            time: formatTime(result.entryTime),
+            entry_time_utc: result.entryTime,
+            asset: result.asset,
+            operation: result.operation,
+            score: result.score,
+            probability: result.probability,
+            result: 'PENDING',
+            pattern: result.priceActionPatterns?.[0]?.pattern || null,
+          }).catch((e) => console.error('Falha ao registrar automaticamente no historico', e));
+        }
+
+        if (alert) {
+          if (!alertedKeysRef.current.has(key)) {
+            alertedKeysRef.current.add(key);
+            playAlertSound();
+            notifyOpportunity(result, formatTime(result.entryTime));
+            setOpportunityFeed((feed) => [result, ...feed].slice(0, 20));
+          }
         }
       }
       return result;
@@ -163,23 +184,6 @@ export default function App() {
   }
 
   const selectedState = selectedAsset ? pairStates[selectedAsset] : null;
-
-  async function saveToHistory() {
-    if (!selectedState || selectedState.status !== 'opportunity') return;
-    const signal = selectedState.data;
-    await addHistoryEntry({
-      date: formatLocalDate(signal.entryTime),
-      time: formatTime(signal.entryTime),
-      entry_time_utc: signal.entryTime,
-      asset: signal.asset,
-      operation: signal.operation,
-      score: signal.score,
-      probability: signal.probability,
-      result: 'PENDING',
-      pattern: signal.priceActionPatterns?.[0]?.pattern || null,
-    });
-    alert('Operacao registrada no historico como PENDING. O sistema vai verificar sozinho se deu WIN ou LOSS assim que a vela fechar.');
-  }
 
   return (
     <div className="min-h-screen">
@@ -275,12 +279,9 @@ export default function App() {
                   {selectedState?.status === 'opportunity' && (
                     <>
                       <OpportunityCard signal={selectedState.data} />
-                      <button
-                        onClick={saveToHistory}
-                        className="text-sm px-4 py-2 mt-3 rounded-md border border-base-700 text-slate-300 hover:border-call/50 hover:text-call"
-                      >
-                        + Registrar esta operacao no historico
-                      </button>
+                      <p className="text-xs text-slate-500 mt-3 flex items-center gap-1.5">
+                        <span className="text-call">✓</span> Registrada automaticamente no histórico como PENDING — o resultado (WIN/LOSS) é verificado sozinho quando a vela fechar.
+                      </p>
                     </>
                   )}
                   {selectedState?.status === 'no_trade' && <NoTradeCard signal={selectedState.data} />}
