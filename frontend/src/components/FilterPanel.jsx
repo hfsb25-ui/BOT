@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const ALL_ASSETS = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD', 'EUR/JPY', 'BTC/USD'];
 const ALL_PATTERNS = ['Pin Bar', 'Engolfo', 'Martelo', 'Doji', 'Pullback', 'BOS', 'CHOCH', 'Falso Rompimento', 'Liquidez'];
 
 export default function FilterPanel({ filters, onChange }) {
+  const [customInput, setCustomInput] = useState('');
+
   if (!filters) return null;
 
   function set(patch) {
@@ -15,6 +17,15 @@ export default function FilterPanel({ filters, onChange }) {
       ? filters.monitored_assets.filter((a) => a !== asset)
       : [...filters.monitored_assets, asset];
     set({ monitored_assets: list });
+  }
+
+  function addCustomAsset() {
+    const symbol = customInput.trim().toUpperCase();
+    if (!symbol) return;
+    if (!filters.monitored_assets.includes(symbol)) {
+      set({ monitored_assets: [...filters.monitored_assets, symbol] });
+    }
+    setCustomInput('');
   }
 
   function togglePattern(pattern) {
@@ -89,7 +100,7 @@ export default function FilterPanel({ filters, onChange }) {
       <div>
         <p className="label-eyebrow mb-2">Ativos monitorados</p>
         <div className="flex flex-wrap gap-1.5">
-          {ALL_ASSETS.map((asset) => (
+          {Array.from(new Set([...ALL_ASSETS, ...filters.monitored_assets])).map((asset) => (
             <button
               key={asset}
               onClick={() => toggleAsset(asset)}
@@ -103,6 +114,25 @@ export default function FilterPanel({ filters, onChange }) {
             </button>
           ))}
         </div>
+        <div className="flex gap-1.5 mt-2">
+          <input
+            type="text"
+            value={customInput}
+            onChange={(e) => setCustomInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomAsset(); } }}
+            placeholder="Ex: GBP/JPY, XAU/USD, ETH/USD, AAPL"
+            className="flex-1 min-w-0 bg-base-800 border border-base-700 rounded-md px-2 py-1.5 text-sm font-mono placeholder:text-slate-600"
+          />
+          <button
+            onClick={addCustomAsset}
+            className="text-xs px-3 py-1.5 rounded-md bg-call/15 text-call border border-call/40 hover:bg-call/25 whitespace-nowrap"
+          >
+            + Adicionar
+          </button>
+        </div>
+        <p className="text-[11px] text-slate-600 mt-1.5">
+          Use o formato da Twelve Data: pares forex (EUR/USD), cripto (BTC/USD) ou acoes/indices (AAPL). Clique em um ativo marcado para removê-lo da lista (ativos adicionados manualmente somem da lista ao serem removidos).
+        </p>
       </div>
 
       <div>
