@@ -16,6 +16,13 @@ Siga [`docs/DEPLOY.md`](docs/DEPLOY.md) — publica o backend, o frontend e o
 banco de dados na nuvem, direto de um repositorio no GitHub, usando apenas
 o navegador (Render + Neon, ambos gratuitos).
 
+## Extensão de navegador (opcional)
+
+Quer ver os sinais direto na tela enquanto estiver na corretora, sem deixar
+o site principal aberto? Veja [`extension/README.md`](extension/README.md) —
+instala em 2 minutos, sem loja de extensões, e só considera pares reais
+(ignora pares OTC automaticamente).
+
 ## Stack
 
 | Camada     | Tecnologia |

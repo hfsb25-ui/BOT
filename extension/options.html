@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Configuracoes - Analisador M5</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0D1218; color: #cbd5e1; padding: 24px; width: 380px; }
+    h2 { color: #f1f5f9; font-size: 16px; margin-bottom: 4px; }
+    p.hint { color: #64748b; font-size: 12px; margin-top: 0; margin-bottom: 16px; }
+    label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
+    input { width: 100%; padding: 8px; background: #131A22; border: 1px solid #28333F; border-radius: 6px; color: #e2e8f0; font-family: monospace; font-size: 13px; margin-bottom: 12px; }
+    button { padding: 8px 16px; background: #2DD4A7; color: #0D1218; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; }
+    #status { font-size: 12px; color: #2DD4A7; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h2>Analisador M5</h2>
+  <p class="hint">Cole a URL do seu backend publicado no Render (a mesma que o site usa).</p>
+
+  <label for="backendUrl">URL do backend</label>
+  <input id="backendUrl" type="text" placeholder="https://trading-analyzer-backend-xxxx.onrender.com" />
+
+  <button id="save">Salvar</button>
+  <p id="status"></p>
+
+  <script src="options.js"></script>
+</body>
+</html>
